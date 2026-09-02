@@ -516,6 +516,29 @@ const ONBOARD_KEY = "onboarding:seen";
 const WORKOUTS_DONE_KEY = "workouts:done";
 const MEALS_DONE_KEY = "meals:done";
 
+// ---------- Guardado local (localStorage del navegador) ----------
+// Reemplaza a window.storage (exclusivo de Claude) para que funcione en cualquier sitio web real.
+const storage = {
+  get: async (key) => {
+    const value = window.localStorage.getItem(key);
+    return value === null ? null : { key, value };
+  },
+  set: async (key, value) => {
+    window.localStorage.setItem(key, value);
+    return { key, value };
+  },
+  delete: async (key) => {
+    window.localStorage.removeItem(key);
+    return { key, deleted: true };
+  },
+};
+
+// ---------- Clave de acceso ----------
+// 👉 Lourdes: cambiá esta clave por la que le des a tus suscriptoras. Podés cambiarla cuando quieras,
+// solo avisame para actualizar el código y subirlo de nuevo a GitHub.
+const ACCESS_CODE = "criandosola2026";
+const ACCESS_KEY = "access:granted";
+
 function getWeekKey(d = new Date()) {
   const date = new Date(d);
   const day = date.getDay(); // 0=domingo
@@ -721,6 +744,27 @@ export default function App() {
   const [onboardChecked, setOnboardChecked] = useState(false);
   const [editingIndex, setEditingIndex] = useState(null);
 
+  const [accessGranted, setAccessGranted] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
+  const [codeInput, setCodeInput] = useState("");
+  const [codeError, setCodeError] = useState("");
+
+  useEffect(() => {
+    const granted = window.localStorage.getItem(ACCESS_KEY) === "true";
+    setAccessGranted(granted);
+    setAccessChecked(true);
+  }, []);
+
+  const checkAccessCode = () => {
+    if (codeInput.trim().toLowerCase() === ACCESS_CODE.toLowerCase()) {
+      window.localStorage.setItem(ACCESS_KEY, "true");
+      setAccessGranted(true);
+      setCodeError("");
+    } else {
+      setCodeError("Clave incorrecta. Fijate mayúsculas/minúsculas y espacios.");
+    }
+  };
+
   useEffect(() => {
     document.title = "Criando Sola Fit";
   }, []);
@@ -778,40 +822,40 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        const r = await window.storage.get(PROFILE_KEY, false);
+        const r = await storage.get(PROFILE_KEY, false);
         if (!cancelled && r && r.value) setForm((f) => ({ ...f, ...JSON.parse(r.value) }));
       } catch (e) {}
       try {
-        const r = await window.storage.get(WEIGHTLOG_KEY, false);
+        const r = await storage.get(WEIGHTLOG_KEY, false);
         if (!cancelled && r && r.value) setWeightLog(JSON.parse(r.value));
       } catch (e) {}
       try {
-        const r = await window.storage.get(WATER_KEY, false);
+        const r = await storage.get(WATER_KEY, false);
         if (!cancelled && r && r.value) setWaterByDay(JSON.parse(r.value));
       } catch (e) {}
       try {
-        const r = await window.storage.get(STEPS_KEY, false);
+        const r = await storage.get(STEPS_KEY, false);
         if (!cancelled && r && r.value) setStepsByDay(JSON.parse(r.value));
       } catch (e) {}
       try {
-        const r = await window.storage.get(SLEEP_KEY, false);
+        const r = await storage.get(SLEEP_KEY, false);
         if (!cancelled && r && r.value) setSleepByDay(JSON.parse(r.value));
       } catch (e) {}
       try {
-        const r = await window.storage.get(PHOTOS_KEY, false);
+        const r = await storage.get(PHOTOS_KEY, false);
         if (!cancelled && r && r.value) setPhotosByDate(JSON.parse(r.value));
       } catch (e) {}
       try {
-        const r = await window.storage.get(WORKOUTS_DONE_KEY, false);
+        const r = await storage.get(WORKOUTS_DONE_KEY, false);
         if (!cancelled && r && r.value) setWorkoutsDone(JSON.parse(r.value));
       } catch (e) {}
       try {
-        const r = await window.storage.get(MEALS_DONE_KEY, false);
+        const r = await storage.get(MEALS_DONE_KEY, false);
         if (!cancelled && r && r.value) setMealsDone(JSON.parse(r.value));
       } catch (e) {}
       let seenOnboarding = false;
       try {
-        const r = await window.storage.get(ONBOARD_KEY, false);
+        const r = await storage.get(ONBOARD_KEY, false);
         if (r && r.value === "true") seenOnboarding = true;
       } catch (e) {}
       if (!cancelled) {
@@ -836,9 +880,9 @@ export default function App() {
     setSaveState("saving");
     setSaveErrorDetail("");
     try {
-      const result = await window.storage.set(PROFILE_KEY, JSON.stringify(overrideForm || form), false);
+      const result = await storage.set(PROFILE_KEY, JSON.stringify(overrideForm || form), false);
       setSaveState(result ? "saved" : "error");
-      if (!result) setSaveErrorDetail("La app no encontró el sistema de guardado (window.storage no respondió).");
+      if (!result) setSaveErrorDetail("La app no encontró el sistema de guardado local.");
       if (result) setTimeout(() => setSaveState("idle"), 3000);
     } catch (e) {
       setSaveState("error");
@@ -848,7 +892,7 @@ export default function App() {
 
   const persistLog = useCallback(async (log) => {
     try {
-      await window.storage.set(WEIGHTLOG_KEY, JSON.stringify(log), false);
+      await storage.set(WEIGHTLOG_KEY, JSON.stringify(log), false);
     } catch (e) {
       setLogError("No se pudo guardar el registro. Probá de nuevo.");
     }
@@ -856,13 +900,13 @@ export default function App() {
 
   const persistWater = useCallback(async (data) => {
     try {
-      await window.storage.set(WATER_KEY, JSON.stringify(data), false);
+      await storage.set(WATER_KEY, JSON.stringify(data), false);
     } catch (e) {}
   }, []);
 
   const persistPhotos = useCallback(async (data) => {
     try {
-      await window.storage.set(PHOTOS_KEY, JSON.stringify(data), false);
+      await storage.set(PHOTOS_KEY, JSON.stringify(data), false);
     } catch (e) {
       setPhotoError("No se pudo guardar la foto. Probá con una imagen más liviana.");
     }
@@ -890,7 +934,7 @@ export default function App() {
       vibrateDevice([100, 60, 100, 60, 150]);
     }
     try {
-      await window.storage.set(WORKOUTS_DONE_KEY, JSON.stringify(updated), false);
+      await storage.set(WORKOUTS_DONE_KEY, JSON.stringify(updated), false);
     } catch (e) {}
   };
 
@@ -899,14 +943,14 @@ export default function App() {
     const updated = { ...mealsDone, [key]: !mealsDone[key] };
     setMealsDone(updated);
     try {
-      await window.storage.set(MEALS_DONE_KEY, JSON.stringify(updated), false);
+      await storage.set(MEALS_DONE_KEY, JSON.stringify(updated), false);
     } catch (e) {}
   };
 
   const dismissOnboarding = async () => {
     setShowOnboarding(false);
     try {
-      await window.storage.set(ONBOARD_KEY, "true", false);
+      await storage.set(ONBOARD_KEY, "true", false);
     } catch (e) {}
   };
 
@@ -958,14 +1002,14 @@ export default function App() {
       setMealsDone(data.mealsDone || {});
 
       await Promise.all([
-        window.storage.set(PROFILE_KEY, JSON.stringify({ ...form, ...data.profile }), false),
-        window.storage.set(WEIGHTLOG_KEY, JSON.stringify(data.weightLog || []), false),
-        window.storage.set(WATER_KEY, JSON.stringify(data.waterByDay || {}), false),
-        window.storage.set(STEPS_KEY, JSON.stringify(data.stepsByDay || {}), false),
-        window.storage.set(SLEEP_KEY, JSON.stringify(data.sleepByDay || {}), false),
-        window.storage.set(PHOTOS_KEY, JSON.stringify(data.photosByDate || {}), false),
-        window.storage.set(WORKOUTS_DONE_KEY, JSON.stringify(data.workoutsDone || {}), false),
-        window.storage.set(MEALS_DONE_KEY, JSON.stringify(data.mealsDone || {}), false),
+        storage.set(PROFILE_KEY, JSON.stringify({ ...form, ...data.profile }), false),
+        storage.set(WEIGHTLOG_KEY, JSON.stringify(data.weightLog || []), false),
+        storage.set(WATER_KEY, JSON.stringify(data.waterByDay || {}), false),
+        storage.set(STEPS_KEY, JSON.stringify(data.stepsByDay || {}), false),
+        storage.set(SLEEP_KEY, JSON.stringify(data.sleepByDay || {}), false),
+        storage.set(PHOTOS_KEY, JSON.stringify(data.photosByDate || {}), false),
+        storage.set(WORKOUTS_DONE_KEY, JSON.stringify(data.workoutsDone || {}), false),
+        storage.set(MEALS_DONE_KEY, JSON.stringify(data.mealsDone || {}), false),
       ]);
       setBackupMsg("✓ Datos restaurados");
     } catch (err) {
@@ -1032,7 +1076,7 @@ export default function App() {
   const resetLog = async () => {
     setWeightLog([]);
     try {
-      await window.storage.delete(WEIGHTLOG_KEY, false);
+      await storage.delete(WEIGHTLOG_KEY, false);
     } catch (e) {}
   };
 
@@ -1050,7 +1094,7 @@ export default function App() {
     const updated = { ...stepsByDay, [day]: Math.max(0, current + delta) };
     setStepsByDay(updated);
     try {
-      await window.storage.set(STEPS_KEY, JSON.stringify(updated), false);
+      await storage.set(STEPS_KEY, JSON.stringify(updated), false);
     } catch (e) {}
   };
 
@@ -1059,7 +1103,7 @@ export default function App() {
     const updated = { ...sleepByDay, [day]: hours };
     setSleepByDay(updated);
     try {
-      await window.storage.set(SLEEP_KEY, JSON.stringify(updated), false);
+      await storage.set(SLEEP_KEY, JSON.stringify(updated), false);
     } catch (e) {}
   };
 
@@ -1374,6 +1418,40 @@ export default function App() {
     a.click();
   }, [currentWeight, startWeight, remaining, goalWeight, streak, progressPct, dailyQuote]);
 
+  if (!accessChecked) {
+    return (
+      <div style={{ background: "#0B0F14", minHeight: "100vh" }} />
+    );
+  }
+
+  if (!accessGranted) {
+    return (
+      <div style={{ background: "#0B0F14", minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", display: "grid", placeItems: "center", padding: 20 }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600;700;800&display=swap'); .display { font-family: 'Archivo Black', 'Inter', sans-serif; }`}</style>
+        <div style={{ maxWidth: 360, width: "100%", textAlign: "center" }}>
+          <div style={{ fontSize: 12, letterSpacing: 3, color: "#FF5A3C", fontWeight: 700, marginBottom: 14 }}>ACCESO PRIVADO</div>
+          <div className="display" style={{ fontSize: 26, color: "#F2F1EC", marginBottom: 10 }}>Criando Sola Fit</div>
+          <div style={{ fontSize: 13.5, color: "#8A93A3", marginBottom: 24 }}>Ingresá la clave que te compartieron para entrar a la app.</div>
+          <input
+            type="text"
+            value={codeInput}
+            onChange={(e) => setCodeInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && checkAccessCode()}
+            placeholder="Clave de acceso"
+            style={{ width: "100%", background: "#131922", border: "1px solid #1E2530", color: "#F2F1EC", borderRadius: 12, padding: "14px 16px", fontSize: 15, textAlign: "center", boxSizing: "border-box" }}
+          />
+          {codeError && <div style={{ color: "#FF5A3C", fontSize: 12.5, marginTop: 10 }}>{codeError}</div>}
+          <button
+            onClick={checkAccessCode}
+            style={{ marginTop: 16, width: "100%", background: "#FF5A3C", color: "#0B0F14", border: "none", borderRadius: 12, padding: "14px 0", fontWeight: 800, fontSize: 15, cursor: "pointer" }}
+          >
+            Ingresar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div style={{ background: theme.bg, minHeight: "100vh", display: "grid", placeItems: "center", color: theme.muted, fontFamily: "Inter, sans-serif" }}>
@@ -1440,7 +1518,7 @@ export default function App() {
       <header style={{ padding: "56px 20px 32px", maxWidth: 760, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
           <div style={{ fontSize: 12, letterSpacing: 3, color: "#FF5A3C", fontWeight: 700, marginBottom: 10 }}>
-            COMBUSTIÓN · TU PLAN EN CASA
+            CRIANDO SOLA FIT
           </div>
           <button
             onClick={() => setDarkMode((d) => !d)}
@@ -1451,7 +1529,11 @@ export default function App() {
           </button>
         </div>
         <h1 className="display" style={{ fontSize: "clamp(32px,7vw,48px)", lineHeight: 1.05, margin: 0 }}>
-          {form.nombre ? `Hola, ${form.nombre}.` : "Entrená en casa,"}<br />comé con <span style={{ color: "#C4F135" }}>un plan</span>.
+          {form.nombre ? (
+            <>Hola, {form.nombre}.<br />Tu <span style={{ color: "#C4F135" }}>plan</span> en casa.</>
+          ) : (
+            <>Entrená en casa,<br />comé con <span style={{ color: "#C4F135" }}>un plan</span>.</>
+          )}
         </h1>
         <p style={{ color: theme.muted, marginTop: 14, fontSize: 15, maxWidth: 480 }}>
           Pensada para quien no tiene tiempo de ir al gimnasio: calorías, rutinas en casa, comidas, lista de compras y tu progreso, todo en un lugar.
